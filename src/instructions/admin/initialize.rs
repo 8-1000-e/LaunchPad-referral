@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::state::*;
 
-
 pub fn handler(ctx: Context<Initialize>) -> Result<()>
 {
     ctx.accounts.global.authority = ctx.accounts.authority.key();
