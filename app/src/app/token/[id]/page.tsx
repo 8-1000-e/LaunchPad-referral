@@ -477,9 +477,9 @@ export default function TokenDetailPage({
                   </button>
                   <span>
                     Created by{" "}
-                    <span className="font-mono text-text-2">
+                    <Link href={`/profile/${token.creator}`} className="font-mono text-text-2 hover:text-text-1 transition-colors">
                       {shorten(token.creator)}
-                    </span>
+                    </Link>
                   </span>
                   <span>{token.createdAgo} ago</span>
                 </div>

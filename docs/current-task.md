@@ -1,56 +1,57 @@
-# Current Task — Frontend: Token Detail Page (Complete) + Next Steps
+# Current Task — All 4 Frontend Pages Complete
 
-## What's Done
+## What Was Done This Session
 
-### Landing Page Polish
-- **Footer** (`components/footer.tsx`): 4-column layout (Brand/Product/Resources/Community), Solana badge, copyright + Terms/Privacy
-- **Scroll indicator** in hero.tsx: bouncing ChevronDown "Explore tokens" that fades on scroll
-- **Floating CTA** in page.tsx: "Launch Token" button appears when `scrollProgress > 0.5`, links to `/create`
-- Removed: HowItWorks section (badly placed per user), ActivityTicker (fake trade messages rejected by user)
+### 1. Create Token Page (`/create`) — NEW
+- **Form sections**: Token Info (name max 32, symbol max 10 auto-uppercase, description max 500), Branding (banner upload + image upload + color picker), Social Links (Twitter/Telegram/Website), Buy on Create (anti-snipe toggle), Cost Summary
+- **Image uploads**: Both banner and token image support click-to-browse AND drag & drop (`onDrop`, `onDragOver`, `onDragLeave` + `FileReader.readAsDataURL`)
+- **Color picker**: 12 preset swatches (`h-8 w-8 shrink-0 rounded-full` in flex-wrap) + custom hex input + native color picker button
+- **Buy on Create**: Custom CSS toggle switch (round knob on pill track), Shield icon + anti-snipe explanation ("Your buy executes in the same transaction as the token creation, no one can front-run you. Only possible at creation."), pill-style amount selector with brand glow
+- **Live preview**: Sticky sidebar on desktop showing token card preview + banner preview. Updates in real-time as form changes.
+- **Launch flow**: Mock launch with success state (confetti-style celebration)
+- **Layout**: Centered `max-w-[960px]`, `lg:grid-cols-[minmax(0,600px)_320px]`
+- **Background**: 2 attenuated orbs + radial gradients + noise overlay
+- **File**: `app/src/app/create/page.tsx` (~900 lines)
 
-### Token Detail Page (`/token/[id]`)
-Complete 2-column layout:
+### 2. Leaderboard Page (`/leaderboard`) — NEW
+- **Live activity ticker**: Scrolling marquee with buy (green) / sell (red) / graduated (gold) events, CSS `ticker-scroll` animation with doubled content
+- **Hero section**: 3 animated counters (requestAnimationFrame + ease-out cubic) + CSS 3D trophy (crown + cup + base + 8 floating particles, `trophy-rotate` keyframe)
+- **3 tabs**: Top Tokens, Top Traders, Top Creators — each with its own data table
+- **Timeframe selector**: 24h / 7d / 30d / All as pill buttons
+- **Podium**: Top 3 displayed as podium cards with crown for #1, silver/bronze medals for #2/#3. Content adapts to active tab.
+- **Data tables**: `TokensTable`, `TradersTable`, `CreatorsTable` — full tables with staggered fade-in, responsive column hiding, hover effects, rank badges
+- **Hall of Fame**: Horizontal scroll of holographic tilt cards for graduated tokens. Gold animated border (`gradient-x`), 3D perspective transform on hover.
+- **Background**: 2 floating orbs (5%/4% opacity), radial gradients (8%/5%), noise overlay
+- **Mock data**: 25 tokens, 20 traders, 18 creators, 12 activity items, 8 graduated tokens
+- **File**: `app/src/app/leaderboard/page.tsx` (~750 lines)
 
-**Left column:**
-- Token header: image, name, symbol, status badge, creator address, creation time
-- TradingView chart (`token-chart.tsx`): lightweight-charts v5 area series, 6 timeframes (1m/5m/15m/1h/4h/All), tooltip overlay, mock OHLC data
-- Stats grid: 6 cards (price, market cap, volume, holders, trades, reserve SOL)
-- Graduation progress: progress bar + mini SVG bonding curve (`bonding-curve-mini.tsx`)
-- Description section
-- Trade history (`trade-history.tsx`): live simulated trades every 2-5s, flash animation on new entries
+### 3. Fixed Pre-existing TS Error
+- `bonding-curve-3d.tsx:837`: Added `if (!container) return;` guard before `container.getBoundingClientRect()`
 
-**Right column (sticky):**
-- Trade form (`trade-form.tsx`): buy/sell toggle, SOL/token input, quick amounts, MAX, output estimate, slippage settings, action button with particle burst
-
-**5 Wow Effects (all implemented):**
-1. **Odometer price ticker** (`ticker-price.tsx`): individual digit slide animation, green/red flash on change
-2. **Trade pulse overlay**: full-screen radial gradient flash (green for buy, red for sell) on each simulated tick
-3. **Mini bonding curve** (`bonding-curve-mini.tsx`): SVG with convex `y=x^1.6` shape, pulsing dot, gradient fill, graduation threshold line
-4. **Graduation heat**: canvas particle emitter + inset border glow for tokens >75% graduated
-5. **Button particles** (`button-particles.tsx`): 24-particle burst from center of trade button on click
-
-**Mock data:** All 12 tokens from homepage have detail page entries with extended fields (mint, totalSupply, holders, trades, reserveSol, description)
-
-### Live Price Simulation
-- Ticks every 1.8-4.2s with ±1.5% volatility (slight upward bias at 0.42)
-- Updates odometer ticker, trade pulse, price flash direction
+### 4. Iterative UI Fixes on Create Page
+- Color swatches were ovals → fixed with `h-8 w-8 shrink-0 rounded-full` (was `w-full` in grid)
+- Added banner upload (was missing initially)
+- Replaced ugly ToggleLeft/ToggleRight icons with custom CSS toggle switch
+- Replaced flat amount buttons with rounded pill selector with brand glow
+- Added anti-snipe explanation text with Shield icon
+- Removed em-dashes, added "Only possible at creation."
 
 ## What's Next
 
-### 1. Create Token Page (`/create`)
-- Form: token name, symbol, image upload, description, initial buy amount
-- Preview card showing how it will look
-- Mock "launch" flow with success state
-
-### 2. Orphan File Cleanup
+### 1. Orphan File Cleanup
 - `components/how-it-works.tsx` — created then removed from page
 - `components/activity-ticker.tsx` — created then removed from page
-- Can be deleted or kept for future use
 
-### 3. Pre-existing Issues
-- TypeScript error in `bonding-curve-3d.tsx:837`: `'container' is possibly 'null'` — not blocking, just a strict null check
+### 2. Backend — Continue Phase 1
+- `instructions/admin/update_config.rs` ← NEXT for Emile (pedagogical mode)
+- `instructions/admin/withdraw_fees.rs`
+- `errors.rs` + `events.rs` (add as needed)
 
-## Frontend Status
-- Landing page: DONE (V10+ with polish)
-- Token detail page: DONE (with 5 wow effects)
-- Create token page: NOT STARTED ← NEXT
+### 3. Future Frontend
+- Connect to real Anchor program once SDK is built
+- Real wallet adapter integration (currently mock)
+- WebSocket-driven live data (currently simulated)
+
+## Known Issues
+- TypeScript error in `bonding-curve-3d.tsx:837` — FIXED this session
+- Orphan component files still exist (not blocking)

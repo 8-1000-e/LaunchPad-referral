@@ -62,6 +62,19 @@ function useCanHandle3D() {
   return can;
 }
 
+/* ── Detect mobile ── */
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return mobile;
+}
+
 /* ── SVG Fallback ── */
 
 function BondingCurveFallback() {
@@ -110,7 +123,7 @@ function BondingCurveFallback() {
   );
 }
 
-/* ── Hero Component — Full-screen immersive canvas ── */
+/* ── Hero Component ── */
 
 export function Hero({
   scrollProgress = 0,
@@ -123,27 +136,32 @@ export function Hero({
   const volumeCount = useCounter(4521, 1400, 600);
   const graduatingCount = useCounter(3, 600, 800);
   const canHandle3D = useCanHandle3D();
+  const isMobile = useIsMobile();
 
   const handlePriceUpdate = useCallback(
-    (_price: number, _isSell: boolean) => {
-      /* price update received — used for 3D animation only */
-    },
+    (_price: number, _isSell: boolean) => {},
     [],
   );
 
-  /* ── Scroll-linked values ── */
-  const canvasFade = Math.max(0, 1 - scrollProgress * 1.2);
-  const canvasBlur = scrollProgress * 25;
-  const canvasScale = 1 + scrollProgress * 0.2; // zoom-in as you scroll down
-  const textFade = Math.max(0, 1 - scrollProgress * 1.5);
-  const textShift = -scrollProgress * 100;
-  const textScale = 1 - scrollProgress * 0.08;
+  /* ── Scroll-linked values (desktop only) ── */
+  const canvasFade = isMobile ? 1 : Math.max(0, 1 - scrollProgress * 1.2);
+  const canvasBlur = isMobile ? 0 : scrollProgress * 25;
+  const canvasScale = isMobile ? 1 : 1 + scrollProgress * 0.2;
+  const textFade = isMobile ? 1 : Math.max(0, 1 - scrollProgress * 1.5);
+  const textShift = isMobile ? 0 : -scrollProgress * 100;
+  const textScale = isMobile ? 1 : 1 - scrollProgress * 0.08;
+
+  const chart3D = canHandle3D ? (
+    <BondingCurve3D onPriceUpdate={handlePriceUpdate} />
+  ) : (
+    <BondingCurveFallback />
+  );
 
   return (
-    <section className="relative h-[85vh] min-h-[600px] overflow-hidden">
-      {/* ── 3D Canvas background — fills entire hero, 0.5x parallax ── */}
+    <section className="relative sm:h-[85vh] sm:min-h-[600px] overflow-hidden">
+      {/* ── Desktop: 3D Canvas background — fills entire hero, 0.5x parallax ── */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 hidden sm:block"
         style={{
           opacity: canvasFade,
           filter: canvasBlur > 0.5 ? `blur(${canvasBlur}px)` : "none",
@@ -152,28 +170,24 @@ export function Hero({
           willChange: "opacity, filter, transform",
         }}
       >
-        {canHandle3D ? (
-          <BondingCurve3D onPriceUpdate={handlePriceUpdate} />
-        ) : (
-          <BondingCurveFallback />
-        )}
+        {chart3D}
       </div>
 
-      {/* ── Readability gradients ── */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c0a09]/90 via-[#0c0a09]/50 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c0a09] via-transparent to-[#0c0a09]/20" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0c0a09]/40 to-transparent h-[30%]" />
+      {/* ── Readability gradients (desktop only) ── */}
+      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-r from-[#0c0a09]/90 via-[#0c0a09]/50 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-t from-[#0c0a09] via-transparent to-[#0c0a09]/20" />
+      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-b from-[#0c0a09]/40 to-transparent h-[30%]" />
 
-      {/* ── Content overlay — scroll fade + translate ── */}
+      {/* ── Content overlay ── */}
       <div
         style={{
           opacity: textFade,
           transform: `translateY(${textShift}px) scale(${textScale})`,
           transformOrigin: "left center",
-          willChange: "opacity, transform",
+          willChange: isMobile ? "auto" : "opacity, transform",
         }}
       >
-        <div className="relative z-10 flex h-[85vh] min-h-[600px] items-end pb-16 sm:items-center sm:pb-0">
+        <div className="relative z-10 flex py-12 sm:py-0 sm:h-[85vh] sm:min-h-[600px] items-center">
           <div className="mx-auto max-w-7xl w-full px-4 sm:px-6">
             <div className="max-w-lg">
               {/* Headline */}
@@ -202,7 +216,7 @@ export function Hero({
               </p>
 
               {/* Stats */}
-              <div className="mt-8 flex flex-wrap items-start gap-8 sm:gap-10">
+              <div className="mt-6 flex flex-wrap items-start gap-5 sm:mt-8 sm:gap-10">
                 <div
                   style={{ animation: "count-fade 0.5s ease-out both 400ms" }}
                 >
@@ -248,7 +262,7 @@ export function Hero({
 
               {/* CTA */}
               <div
-                className="mt-10"
+                className="mt-6 sm:mt-10"
                 style={{ animation: "count-fade 0.5s ease-out both 800ms" }}
               >
                 <a
@@ -269,13 +283,15 @@ export function Hero({
                   <ArrowRight className="relative h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </a>
               </div>
+
             </div>
           </div>
         </div>
       </div>
-      {/* ── Scroll indicator ── */}
+
+      {/* ── Scroll indicator (desktop only) ── */}
       <div
-        className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1"
+        className="absolute bottom-6 left-1/2 z-10 hidden sm:flex -translate-x-1/2 flex-col items-center gap-1"
         style={{
           opacity: Math.max(0, 1 - scrollProgress * 4),
           transition: "opacity 0.15s",

@@ -834,6 +834,7 @@ export function BondingCurve3D({
 
     // ── Scroll listener ──
     function onScroll() {
+      if (!container) return;
       const rect = container.getBoundingClientRect();
       scrollFactor = Math.max(0, Math.min(1, -rect.top / rect.height));
     }

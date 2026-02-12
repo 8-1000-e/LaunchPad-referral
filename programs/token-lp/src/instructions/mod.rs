@@ -5,3 +5,4 @@ pub mod migration;
 pub mod referral;
 
 pub use admin::*;
+pub use launch::*;

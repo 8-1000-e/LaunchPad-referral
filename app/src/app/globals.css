@@ -57,6 +57,15 @@
 html { color-scheme: dark; }
 body { background: var(--bg); color: var(--text-1); }
 
+/* Snap scroll between hero and content — desktop only, home page only */
+@media (min-width: 640px) {
+  .snap-page {
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+  }
+  .snap-page .snap-section { scroll-snap-align: start; scroll-margin-top: 56px; }
+}
+
 * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -163,9 +163,16 @@ export default function Home() {
   /* ─── Scroll tracking for parallax & transitions ─── */
   const [scrollY, setScrollY] = useState(0);
   const [heroH, setHeroH] = useState(800);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    setHeroH(window.innerHeight * 0.85);
+    const mobile = window.innerWidth < 640;
+    setIsMobile(mobile);
+    setHeroH(mobile ? 400 : window.innerHeight * 0.85);
+
+    // Enable snap scroll on home page only (desktop)
+    if (!mobile) document.documentElement.classList.add("snap-page");
+
     let ticking = false;
     function onScroll() {
       if (!ticking) {
@@ -177,7 +184,10 @@ export default function Home() {
       }
     }
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      document.documentElement.classList.remove("snap-page");
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   const scrollProgress = Math.min(1, Math.max(0, scrollY / heroH));
@@ -293,11 +303,13 @@ export default function Home() {
       {/* ── Content ── */}
       <div className="relative">
         <Navbar />
-        <Hero scrollProgress={scrollProgress} scrollY={scrollY} />
+        <div className="snap-section">
+          <Hero scrollProgress={scrollProgress} scrollY={scrollY} />
+        </div>
 
         <main
-          className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 pb-20"
-          style={{
+          className="snap-section mx-auto max-w-7xl px-4 sm:px-6 pt-8 pb-20"
+          style={isMobile ? {} : {
             opacity: Math.min(1, tokenProgress * 1.8),
             transform: `translateY(${Math.max(0, (1 - tokenProgress) * 100)}px) scale(${0.92 + tokenProgress * 0.08})`,
             transformOrigin: "top center",
@@ -383,16 +395,15 @@ export default function Home() {
           </p>
 
           {/* ── Grid ── */}
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {tokens.map((token, i) => {
-              const cardP = Math.min(
-                1,
-                Math.max(0, (tokenProgress - i * 0.05) / 0.2),
-              );
+              const cardP = isMobile
+                ? 1
+                : Math.min(1, Math.max(0, (tokenProgress - i * 0.05) / 0.2));
               return (
                 <div
                   key={token.id}
-                  style={{
+                  style={isMobile ? { animation: `count-fade 0.4s ease-out both ${i * 50}ms` } : {
                     opacity: cardP,
                     transform: `translateY(${(1 - cardP) * 60}px) scale(${0.9 + cardP * 0.1})`,
                     willChange: "opacity, transform",

@@ -41,4 +41,9 @@ pub mod token_lp {
     {
         instructions::admin::withdraw_fees::handler(ctx)
     }
+
+    pub fn create_token(ctx: Context<CreateToken>, name: String, symbol: String, uri: String) -> Result<()>
+    {
+        instructions::launch::create_token::handler(ctx, name, symbol, uri)
+    }
 }

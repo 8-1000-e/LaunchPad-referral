@@ -108,3 +108,28 @@
 **Context**: Building `/token/[id]` page. TypeScript error on `params.id`.
 **Decision**: Use `use()` from React to unwrap: `const { id } = use(params)` where `params: Promise<{id: string}>`.
 **Rationale**: Next.js 16 changed dynamic route params to be async/Promise-based. This is the correct pattern for client components.
+
+## 2026-02-11 — CSS color swatches: fixed-size over grid-fill
+**Context**: Color picker swatches in `/create` page were ovals. Using `w-full` in a `grid-cols-6` makes elements wider than tall, so `border-radius: 50%` creates ovals.
+**Decision**: Use `flex flex-wrap gap-2.5` with `h-8 w-8 shrink-0 rounded-full` instead of grid with `w-full`.
+**Rationale**: Fixed dimensions guarantee perfect circles. `shrink-0` prevents flex compression.
+
+## 2026-02-11 — Buy on Create: anti-snipe same-transaction pattern
+**Context**: "Buy on Create" feature lets creators buy their own token at launch.
+**Decision**: Explain it as anti-snipe: "Your buy executes in the same transaction as the token creation, no one can front-run you. Only possible at creation." Custom CSS toggle switch + pill amount selector with brand glow.
+**Rationale**: Same-transaction execution is a real security feature (prevents MEV bots from front-running). Framing it as anti-snipe gives users confidence. UI uses custom CSS toggle (round knob on pill track) instead of icon-based toggle for better affordance.
+
+## 2026-02-11 — Leaderboard: CSS 3D trophy over Three.js
+**Context**: Leaderboard hero needed a trophy visual element.
+**Decision**: Built trophy with pure CSS (gradients, box-shadows, keyframe rotation) instead of a 3D model in Three.js/R3F.
+**Rationale**: R3F incompatible with React 19. Loading a 3D model just for a trophy is overkill. CSS trophy with floating particles and rotation animation is lightweight and looks great.
+
+## 2026-02-11 — Leaderboard: holographic Hall of Fame cards
+**Context**: Boss wanted "WOW EFFECT" for graduated tokens section.
+**Decision**: Horizontal scroll of cards with gold animated border (`gradient-x` keyframe), 3D perspective transform on hover (`perspective(600px) rotateY(-3deg) rotateX(2deg) scale(1.02)`), subtle holographic feel.
+**Rationale**: Graduated tokens are the success stories — they deserve special visual treatment. Holographic tilt + gold border creates a "collector's card" feel.
+
+## 2026-02-11 — Animated counters with requestAnimationFrame
+**Context**: Leaderboard hero shows stats (total tokens launched, total volume, active traders).
+**Decision**: `useAnimatedCounter` hook using `requestAnimationFrame` + ease-out cubic easing (`1 - Math.pow(1 - t, 3)`), animates from 0 to target over 2 seconds.
+**Rationale**: Counting up from zero creates a "reveal" moment. rAF ensures smooth 60fps animation. Ease-out cubic feels natural — fast start, smooth landing.
