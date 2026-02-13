@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::constants::*;
+use crate::events::*;
 use crate::state::*;
 use crate::errors::*;
 use anchor_spl::token::{Mint, TokenAccount, Token};
@@ -108,7 +109,19 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
     if ctx.accounts.bonding_curve.real_sol_reserves >= ctx.accounts.global.graduation_threshold
     {
       ctx.accounts.bonding_curve.completed = true;
+      emit!(CompleteEvent {
+        mint: ctx.accounts.mint.key(),
+        real_sol_reserves: ctx.accounts.bonding_curve.real_sol_reserves,
+      });
     }
+
+    emit!(TradeEvent {                                                           
+        mint: ctx.accounts.mint.key(),                                           
+        trader: ctx.accounts.buyer.key(),                                        
+        is_buy: true,
+        sol_amount: sol_after_fee,                                               
+        token_amount: tokens_out,                                                
+    });
     Ok(())
 }
 

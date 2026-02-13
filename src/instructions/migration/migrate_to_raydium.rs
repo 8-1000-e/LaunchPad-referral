@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::state::*;
 use anchor_spl::token::Token;
+use crate::events::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use raydium_cp_swap::program::RaydiumCpSwap;
@@ -75,6 +76,11 @@ pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
     
     
     ctx.accounts.bonding_curve.migrated = true;
+
+    emit!(MigrateEvent{
+        mint: ctx.accounts.mint.key(),
+        pool_state: ctx.accounts.pool_state.key()
+    });
 
     Ok(())
 }

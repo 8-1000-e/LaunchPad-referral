@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::constants::*;
+use crate::events::*;
 use crate::state::*;
 use crate::errors::*;
 use anchor_spl::token::{Mint, TokenAccount, Token};
@@ -49,6 +50,10 @@ pub fn _create_token(ctx: Context<CreateToken>, name: String, symbol: String, ur
         ctx.accounts.global.token_total_supply,
     )?;
 
+    let ev_name = name.clone();
+    let ev_symbol = symbol.clone();
+    let ev_uri = uri.clone();
+
     create_metadata_accounts_v3(
         CpiContext::new_with_signer(
             ctx.accounts.token_metadata_program.to_account_info(),
@@ -77,6 +82,13 @@ pub fn _create_token(ctx: Context<CreateToken>, name: String, symbol: String, ur
         None,  // collection_details
     )?;
 
+    emit!(CreateEvent{
+        creator: ctx.accounts.creator.key(),
+        mint: ctx.accounts.mint.key(),
+        name: ev_name,
+        symbol: ev_symbol,
+        uri: ev_uri,
+    });
     Ok(())
 }
 

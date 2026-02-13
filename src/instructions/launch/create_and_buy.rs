@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use crate::events::*;
 use crate::constants::*;
 use crate::utils::math::calculate_buy_amount;
 use crate::state::*;
@@ -49,6 +50,11 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
         ),
         ctx.accounts.global.token_total_supply,
     )?;
+
+    let ev_name = name.clone();
+    let ev_symbol = symbol.clone();
+    let ev_uri = uri.clone();
+
 
     create_metadata_accounts_v3(
         CpiContext::new_with_signer(
@@ -140,7 +146,27 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
     if ctx.accounts.bonding_curve.real_sol_reserves >= ctx.accounts.global.graduation_threshold
     {
       ctx.accounts.bonding_curve.completed = true;
+      emit!(CompleteEvent {
+        mint: ctx.accounts.mint.key(),
+        real_sol_reserves: ctx.accounts.bonding_curve.real_sol_reserves,
+      });
     }
+
+    emit!(TradeEvent {                                                           
+        mint: ctx.accounts.mint.key(),                                           
+        trader: ctx.accounts.creator.key(),                                        
+        is_buy: true,
+        sol_amount: sol_after_fee,                                               
+        token_amount: tokens_out,                                                
+    });
+
+    emit!(CreateEvent{
+        creator: ctx.accounts.creator.key(),
+        mint: ctx.accounts.mint.key(),
+        name: ev_name,
+        symbol: ev_symbol,
+        uri: ev_uri,
+    });
     Ok(())
 }
 
