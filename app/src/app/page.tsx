@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, ArrowUpDown, ChevronDown, ArrowRight, Rocket } from "lucide-react";
+import { Search, ArrowUpDown, ChevronDown, ArrowRight, Rocket, TrendingUp, Zap } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { Hero } from "@/components/hero";
 
@@ -310,8 +310,8 @@ export default function Home() {
           className="absolute inset-0"
           style={{ filter: "sepia(1) saturate(2) hue-rotate(5deg) brightness(0.85)" }}
         />
-        {/* Readability overlay */}
-        <div className="absolute inset-0 bg-bg/30" />
+        {/* Readability overlay — darker on mobile for text legibility */}
+        <div className={`absolute inset-0 ${isMobile ? "bg-bg/60" : "bg-bg/30"}`} />
       </div>
 
       {/* ── Floating CTA — appears after scrolling past hero ── */}
@@ -343,6 +343,60 @@ export default function Home() {
         <div className="snap-section">
           <Hero scrollProgress={scrollProgress} scrollY={scrollY} />
         </div>
+
+        {/* ── Mobile inline header (no hero section) ── */}
+        {isMobile && (
+          <div className="relative z-10 px-4 pt-4 pb-2">
+            <h1
+              className="font-display text-4xl font-bold tracking-tight"
+              style={{
+                background: "linear-gradient(135deg, var(--brand) 0%, var(--text-1) 35%, var(--text-1) 65%, var(--brand-bright) 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              Launch tokens.<br />Watch them fly.
+            </h1>
+            <p className="mt-2 text-[13px] leading-relaxed text-text-3">
+              Create meme tokens on Solana with automatic bonding curves.
+            </p>
+            <div className="mt-4 flex items-center gap-5">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Rocket className="h-3.5 w-3.5 text-brand" />
+                  <span className="font-mono text-lg font-bold tabular-nums text-brand">1,247</span>
+                </div>
+                <p className="text-[9px] uppercase tracking-widest text-text-3">tokens</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-text-3" />
+                  <span className="font-mono text-lg font-bold tabular-nums text-text-1">4,521</span>
+                </div>
+                <p className="text-[9px] uppercase tracking-widest text-text-3">SOL vol</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-status-graduating" />
+                  <span className="font-mono text-lg font-bold tabular-nums text-status-graduating">3</span>
+                </div>
+                <p className="text-[9px] uppercase tracking-widest text-text-3">graduating</p>
+              </div>
+            </div>
+            <a
+              href="/create"
+              className="group relative mt-5 inline-flex items-center gap-2 overflow-hidden px-5 py-2.5 text-[13px] font-semibold text-bg"
+            >
+              <span
+                className="absolute inset-0 bg-gradient-to-r from-brand via-brand-bright to-brand"
+                style={{ backgroundSize: "200% 100%", animation: "gradient-x 4s ease infinite" }}
+              />
+              <span className="relative font-display">Launch a token</span>
+              <ArrowRight className="relative h-3.5 w-3.5" />
+            </a>
+          </div>
+        )}
 
         <main
           className="snap-section mx-auto max-w-7xl px-4 sm:px-6 pt-4 sm:pt-8 pb-20"

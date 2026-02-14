@@ -6,12 +6,13 @@ IMPORTANT: At session start, read all .md files in the /docs/ directory to resto
 
 ## Current State
 
-- **Branch**: main
-- **Status**: All trading + referral instructions complete. Migration to Raydium CPMM in progress (struct partially written, handler not started). Frontend: wallet connection live, Unicorn Studio background, referral dashboard in profile.
-- **Last updated**: 2026-02-12
+- **Branch**: main (+ `programs` branch = subtree of `programs/token-lp/`)
+- **Status**: All instructions complete (trading, referral, migration). Events complete. Security audit fixes complete. `anchor build` passes. Next: tests, SDK, frontend integration.
+- **Last updated**: 2026-02-13
 - **Dev server**: `cd app/ && npx next dev --webpack --port 3001` (MUST use --webpack flag, Turbopack hangs with dual lockfiles)
-- **Frontend location**: `/Users/emile/Documents/learn/Dev Journey/Launch/app/` (moved from `token-lp/app/`)
-- **Backend location**: `/Users/emile/Documents/learn/Dev Journey/token-lp/programs/token-lp/`
+- **Frontend location**: `/Users/emile/Documents/learn/Dev Journey/Launch/app/`
+- **Backend location**: `/Users/emile/Documents/learn/Dev Journey/Launch/programs/token-lp/`
+- **Git push**: `push-launch` alias = push main + subtree push programs (`git subtree push --prefix programs/token-lp origin programs`)
 
 ## Approach
 
@@ -35,16 +36,16 @@ IMPORTANT: At session start, read all .md files in the /docs/ directory to resto
 - [x] All `mod.rs` files wired with `pub use *`
 - [x] `lib.rs` — all 7 instructions wired
 - [x] `anchor build` passes ✅
-- [ ] `events.rs` (still empty — add events as needed)
+- [x] `events.rs` — TradeEvent, CreateEvent, CompleteEvent, MigrateEvent + emit!() in all handlers
 - [ ] Tests (01_admin through 05_migration)
 
 ### Phase 2: Token Launch ✅
-- [x] `create_token.rs` — full handler: init bonding curve, mint_to total supply, CPI create_metadata_accounts_v3, status check
-- [x] `create_and_buy.rs` — full handler: create + atomic first buy, no slippage check (first buyer)
+- [x] `create_token.rs` — full handler: init bonding curve, mint_to total supply, CPI create_metadata_accounts_v3, status check, freeze authority revoke, CreateEvent
+- [x] `create_and_buy.rs` — full handler: create + atomic first buy with min_tokens_out slippage, freeze authority revoke, referral split, CreateEvent + TradeEvent + CompleteEvent
 
 ### Phase 3: Trading ✅
-- [x] `buy.rs` — full handler with fee calc, SOL transfer, token transfer (PDA signs), referral integration, graduation check
-- [x] `sell.rs` — full handler: mirror of buy. Fee on SOL output. Seller signs for tokens, PDA signs for SOL + fees. State update reversed.
+- [x] `buy.rs` — full handler with checked arithmetic, fee calc, SOL transfer, token transfer (PDA signs), referral split + PDA validation, graduation check, TradeEvent + CompleteEvent
+- [x] `sell.rs` — full handler: sub_lamports for SOL from bonding curve, rent exemption check, referral split + PDA validation, TradeEvent
 
 ### Phase 4: Referrals ✅
 - [x] `register_referral.rs` — creates Referral PDA with seeds ["referral", user.key()]
@@ -52,17 +53,26 @@ IMPORTANT: At session start, read all .md files in the /docs/ directory to resto
 - [x] Referral integrated into buy.rs and sell.rs — `Option<Account<'info, Referral>>` replaces `UncheckedAccount`
 - [x] Referral stats updated on each trade (total_earned, trade_count)
 
-### Phase 5: Migration (IN PROGRESS) ← CURRENT
-- [ ] `migrate_to_raydium.rs` — struct partially written (copied from raydium-cpi-example), needs fixes
-- [ ] Handler not started
-- [ ] Raydium CPMM dependency added (`raydium-cp-swap` crate), compiles with Anchor 0.32.1
-- [ ] `05_migration.test.ts`
+### Phase 5: Migration ✅
+- [x] `migrate_to_raydium.rs` — full handler: migration fee via sub_lamports, CPI Raydium CPMM initialize, LP token burn (manual deserialization of UncheckedAccount), has_one = authority (admin-only), MigrateEvent
+- [x] Raydium CPMM dependency (`raydium-cp-swap` crate), compiles with Anchor 0.32.1
 
-### Phase 6: Post-MVP
-- [ ] Security audit fixes (input validation in update_config, checked_sub for fee calcs)
-- [ ] Events (TokenCreated, TokenBought, TokenSold, CurveGraduated)
+### Phase 6: Security Audit ✅
+- [x] All critical/high/medium bugs from audit fixed
+- [x] Checked arithmetic everywhere (checked_add/sub/mul/div + u64::try_from with CastOverflow)
+- [x] Input validation in update_config (reserves > 0, fee_bps <= 5000, combined shares <= 10000)
+- [x] Referral PDA validation via find_program_address in handlers
+- [x] DEPLOYER_PUBKEY constraint on initialize
+- [x] Freeze authority revoked at token creation
+- [x] Rent exemption check in sell
+- [x] withdraw_fees uses CPI transfer with fee_vault signer seeds (not sub_lamports on SystemAccount)
+
+### Phase 7: Post-MVP ← CURRENT
+- [ ] Tests (01_admin through 05_migration)
 - [ ] SDK (`sdk/src/client.ts`, `math.ts`, `pda.ts`, `types.ts`, `constants.ts`)
-- [ ] Tests
+- [ ] Minor: `creator_share_bps` stored in Global but never used (incomplete feature)
+- [ ] Minor: No `close` instruction to reclaim bonding curve rent after migration
+- [ ] Minor: `open_time = now` in migrate makes Raydium pool snipable immediately
 
 ## Task Progress — Frontend
 

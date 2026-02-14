@@ -57,13 +57,9 @@
 html { color-scheme: dark; }
 body { background: var(--bg); color: var(--text-1); }
 
-/* Snap scroll between hero and content — desktop only, home page only */
+/* Smooth scroll — desktop only, home page only */
 @media (min-width: 640px) {
-  .snap-page {
-    scroll-snap-type: y proximity;
-    scroll-behavior: smooth;
-  }
-  .snap-page .snap-section { scroll-snap-align: start; scroll-margin-top: 56px; }
+  .snap-page { scroll-behavior: smooth; }
 }
 
 * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
@@ -158,6 +154,11 @@ body { background: var(--bg); color: var(--text-1); }
 @keyframes ticker-scroll {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 /* ─── Noise grain overlay ─── */

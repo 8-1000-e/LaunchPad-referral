@@ -10,8 +10,18 @@ pub fn _withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()>
         .checked_sub(rent)                                              
         .ok_or(AdminError::NotEnoughLamports)?; 
 
-    ctx.accounts.fee_vault.sub_lamports(amount)?;
-    ctx.accounts.recipient.add_lamports(amount)?;
+    let seeds = &[FEE_VAULT_SEED, &[ctx.bumps.fee_vault]];
+    let signer = &[&seeds[..]];
+
+    let cpi_ctx = CpiContext::new_with_signer(
+        ctx.accounts.system_program.to_account_info(),
+        anchor_lang::system_program::Transfer {
+            from: ctx.accounts.fee_vault.to_account_info(),
+            to: ctx.accounts.recipient.to_account_info(),
+        },
+        signer,
+    );
+    anchor_lang::system_program::transfer(cpi_ctx, amount)?;
     Ok(())
 }
 
@@ -36,6 +46,10 @@ pub struct WithdrawFees<'info>
     pub fee_vault: SystemAccount<'info>,
     
     /// CHECK: just receives lamports
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = recipient.key() == global.fee_receiver
+    )]
     pub recipient: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
 }

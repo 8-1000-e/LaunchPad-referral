@@ -143,14 +143,16 @@ export function Hero({
     [],
   );
 
-  /* ── Scroll-linked values (desktop only) ── */
-  // Cross-fade: hero starts fading at 20% scroll, gone by 60%
-  const canvasFade = isMobile ? 1 : Math.max(0, 1 - Math.pow(Math.min(1, scrollProgress / 0.6), 1.5));
-  const canvasBlur = isMobile ? 0 : Math.pow(Math.min(1, scrollProgress / 0.5), 2) * 20;
-  const canvasScale = isMobile ? 1 : 1 + scrollProgress * 0.15;
-  const textFade = isMobile ? 1 : Math.max(0, 1 - scrollProgress * 1.5);
-  const textShift = isMobile ? 0 : -scrollProgress * 100;
-  const textScale = isMobile ? 1 : 1 - scrollProgress * 0.08;
+  /* ── Mobile: no hero section, handled inline in page.tsx ── */
+  if (isMobile) return null;
+
+  /* ── Scroll-linked values ── */
+  const canvasFade = Math.max(0, 1 - Math.pow(Math.min(1, scrollProgress / 0.6), 1.5));
+  const canvasBlur = Math.pow(Math.min(1, scrollProgress / 0.5), 2) * 20;
+  const canvasScale = 1 + scrollProgress * 0.15;
+  const textFade = Math.max(0, 1 - scrollProgress * 1.5);
+  const textShift = -scrollProgress * 100;
+  const textScale = 1 - scrollProgress * 0.08;
 
   const chart3D = canHandle3D ? (
     <BondingCurve3D onPriceUpdate={handlePriceUpdate} />
@@ -159,10 +161,10 @@ export function Hero({
   );
 
   return (
-    <section className="relative sm:h-[85vh] sm:min-h-[600px] overflow-hidden">
-      {/* ── Desktop: 3D Canvas background — fills entire hero, 0.5x parallax ── */}
+    <section className="relative h-[85vh] min-h-[600px] overflow-hidden">
+      {/* ── 3D Canvas background ── */}
       <div
-        className="absolute inset-0 hidden sm:block"
+        className="absolute inset-0"
         style={{
           opacity: canvasFade,
           filter: canvasBlur > 0.5 ? `blur(${canvasBlur}px)` : "none",
@@ -174,10 +176,10 @@ export function Hero({
         {chart3D}
       </div>
 
-      {/* ── Readability gradients (desktop only) ── */}
-      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-r from-[#0c0a09]/90 via-[#0c0a09]/50 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-t from-[#0c0a09] via-transparent to-[#0c0a09]/20" />
-      <div className="pointer-events-none absolute inset-0 hidden sm:block bg-gradient-to-b from-[#0c0a09]/40 to-transparent h-[30%]" />
+      {/* ── Readability gradients ── */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c0a09]/90 via-[#0c0a09]/50 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c0a09] via-transparent to-[#0c0a09]/20" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0c0a09]/40 to-transparent h-[30%]" />
 
       {/* ── Content overlay ── */}
       <div
@@ -185,15 +187,15 @@ export function Hero({
           opacity: textFade,
           transform: `translateY(${textShift}px) scale(${textScale})`,
           transformOrigin: "left center",
-          willChange: isMobile ? "auto" : "opacity, transform",
+          willChange: "opacity, transform",
         }}
       >
-        <div className="relative z-10 flex pt-6 pb-4 sm:pt-0 sm:pb-0 sm:h-[85vh] sm:min-h-[600px] items-center">
-          <div className="mx-auto max-w-7xl w-full px-4 sm:px-6">
-            <div className="max-w-lg rounded-xl sm:rounded-none backdrop-blur-md sm:backdrop-blur-none bg-bg/40 sm:bg-transparent p-4 sm:p-0">
+        <div className="relative z-10 flex h-[85vh] min-h-[600px] items-center">
+          <div className="mx-auto max-w-7xl w-full px-6">
+            <div className="max-w-lg">
               {/* Headline */}
               <h1
-                className="font-display text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl"
+                className="font-display text-4xl font-bold tracking-tight lg:text-5xl"
                 style={{
                   animation: "count-fade 0.7s ease-out both 100ms",
                   background:
@@ -217,13 +219,13 @@ export function Hero({
               </p>
 
               {/* Stats */}
-              <div className="mt-6 flex flex-wrap items-start gap-5 sm:mt-8 sm:gap-10">
+              <div className="mt-8 flex flex-wrap items-start gap-10">
                 <div
                   style={{ animation: "count-fade 0.5s ease-out both 400ms" }}
                 >
                   <div className="flex items-center gap-2">
                     <Rocket className="h-4 w-4 text-brand" />
-                    <p className="font-mono text-2xl font-bold tabular-nums text-brand sm:text-3xl">
+                    <p className="font-mono text-3xl font-bold tabular-nums text-brand">
                       {tokensCount.toLocaleString()}
                     </p>
                   </div>
@@ -237,7 +239,7 @@ export function Hero({
                 >
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-text-3" />
-                    <p className="font-mono text-2xl font-bold tabular-nums text-text-1 sm:text-3xl">
+                    <p className="font-mono text-3xl font-bold tabular-nums text-text-1">
                       {volumeCount.toLocaleString()}
                     </p>
                   </div>
@@ -251,7 +253,7 @@ export function Hero({
                 >
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-status-graduating" />
-                    <p className="font-mono text-2xl font-bold tabular-nums text-status-graduating sm:text-3xl">
+                    <p className="font-mono text-3xl font-bold tabular-nums text-status-graduating">
                       {graduatingCount}
                     </p>
                   </div>
@@ -263,7 +265,7 @@ export function Hero({
 
               {/* CTA */}
               <div
-                className="mt-6 sm:mt-10"
+                className="mt-10"
                 style={{ animation: "count-fade 0.5s ease-out both 800ms" }}
               >
                 <a
@@ -290,9 +292,9 @@ export function Hero({
         </div>
       </div>
 
-      {/* ── Scroll indicator (desktop only) ── */}
+      {/* ── Scroll indicator ── */}
       <div
-        className="absolute bottom-6 left-1/2 z-10 hidden sm:flex -translate-x-1/2 flex-col items-center gap-1"
+        className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-1"
         style={{
           opacity: Math.max(0, 1 - scrollProgress * 4),
           transition: "opacity 0.15s",

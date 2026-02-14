@@ -17,9 +17,10 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
         .checked_mul(ctx.accounts.global.trade_fee_bps as u128)
         .ok_or(MathError::Overflow)?
         .checked_div(10_000)
-        .ok_or(MathError::DivisionByZero)? as u64;
+        .ok_or(MathError::DivisionByZero)?;
+    let fee = u64::try_from(fee).map_err(|_| MathError::CastOverflow)?;
 
-    let sol_after_fee = sol_amount - fee;
+    let sol_after_fee = sol_amount.checked_sub(fee).ok_or(MathError::Overflow)?;
 
     let tokens_out = calculate_buy_amount(ctx.accounts.bonding_curve.virtual_sol, ctx.accounts.bonding_curve.virtual_token, sol_after_fee)?;
 
@@ -55,15 +56,43 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
 
     anchor_spl::token::transfer(cpi_context, tokens_out)?;
 
+    // Creator fee
+    let creator_fee = (fee as u128)
+        .checked_mul(ctx.accounts.global.creator_share_bps as u128)
+        .ok_or(MathError::Overflow)?
+        .checked_div(10_000)
+        .ok_or(MathError::DivisionByZero)?;
+    let creator_fee = u64::try_from(creator_fee).map_err(|_| MathError::CastOverflow)?;
+    let remaining_fee = fee.checked_sub(creator_fee).ok_or(MathError::Overflow)?;
+
+    if creator_fee > 0 {
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer{
+                from: ctx.accounts.buyer.to_account_info(),
+                to: ctx.accounts.creator_account.to_account_info(),
+            }
+        );
+        anchor_lang::system_program::transfer(cpi_context, creator_fee)?;
+    }
+
     if let Some(referral) = &mut ctx.accounts.referral
     {
-        let referral_fee = (fee as u128)
+        // Validate referral PDA
+        let (expected_pda, _) = Pubkey::find_program_address(
+            &[REFERRAL_SEED, referral.referrer.as_ref()],
+            ctx.program_id,
+        );
+        require!(referral.key() == expected_pda, TradeError::InvalidReferral);
+
+        let referral_fee = (remaining_fee as u128)
             .checked_mul(ctx.accounts.global.referral_share_bps as u128)
             .ok_or(MathError::Overflow)?
             .checked_div(10_000)
-            .ok_or(MathError::DivisionByZero)? as u64;
+            .ok_or(MathError::DivisionByZero)?;
+        let referral_fee = u64::try_from(referral_fee).map_err(|_| MathError::CastOverflow)?;
 
-        let protocol_fee = fee - referral_fee;
+        let protocol_fee = remaining_fee.checked_sub(referral_fee).ok_or(MathError::Overflow)?;
 
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -85,11 +114,11 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
 
         anchor_lang::system_program::transfer(cpi_context, referral_fee)?;
 
-        referral.total_earned += referral_fee;
-        referral.trade_count += 1;
-    } 
-    else 
-    { 
+        referral.total_earned = referral.total_earned.checked_add(referral_fee).ok_or(MathError::Overflow)?;
+        referral.trade_count = referral.trade_count.checked_add(1).ok_or(MathError::Overflow)?;
+    }
+    else
+    {
         let cpi_context = CpiContext::new(
                 ctx.accounts.system_program.to_account_info(),
                 anchor_lang::system_program::Transfer{
@@ -98,13 +127,13 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
                 }
             );
 
-        anchor_lang::system_program::transfer(cpi_context, fee)?;
+        anchor_lang::system_program::transfer(cpi_context, remaining_fee)?;
     }
 
-    ctx.accounts.bonding_curve.virtual_sol += sol_after_fee;
-    ctx.accounts.bonding_curve.virtual_token -= tokens_out;
-    ctx.accounts.bonding_curve.real_sol_reserves += sol_after_fee;
-    ctx.accounts.bonding_curve.real_token -= tokens_out;
+    ctx.accounts.bonding_curve.virtual_sol = ctx.accounts.bonding_curve.virtual_sol.checked_add(sol_after_fee).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.virtual_token = ctx.accounts.bonding_curve.virtual_token.checked_sub(tokens_out).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.real_sol_reserves = ctx.accounts.bonding_curve.real_sol_reserves.checked_add(sol_after_fee).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.real_token = ctx.accounts.bonding_curve.real_token.checked_sub(tokens_out).ok_or(MathError::Overflow)?;
 
     if ctx.accounts.bonding_curve.real_sol_reserves >= ctx.accounts.global.graduation_threshold
     {
@@ -115,12 +144,13 @@ pub fn _buy(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<(
       });
     }
 
-    emit!(TradeEvent {                                                           
-        mint: ctx.accounts.mint.key(),                                           
-        trader: ctx.accounts.buyer.key(),                                        
+    emit!(TradeEvent {
+        mint: ctx.accounts.mint.key(),
+        trader: ctx.accounts.buyer.key(),
         is_buy: true,
-        sol_amount: sol_after_fee,                                               
-        token_amount: tokens_out,                                                
+        sol_amount: sol_after_fee,
+        token_amount: tokens_out,
+        fee,
     });
     Ok(())
 }
@@ -132,7 +162,6 @@ pub struct Buy<'info>
     pub buyer: Signer<'info>,
 
     #[account(
-        mut,
         seeds = [GLOBAL_SEED],
         bump
     )]
@@ -163,13 +192,20 @@ pub struct Buy<'info>
     )]
     pub token_account: Account<'info, TokenAccount>,
 
+    /// CHECK: the token creator, receives creator_share_bps of fees
+    #[account(
+        mut,
+        constraint = creator_account.key() == bonding_curve.creator,
+    )]
+    pub creator_account: SystemAccount<'info>,
+
     #[account(
         mut,
         seeds = [FEE_VAULT_SEED],
-        bump,        
+        bump,
     )]
     pub fee_vault: SystemAccount<'info>,
-  
+
     #[account(mut)]
     pub referral: Option<Account<'info, Referral>>,
 

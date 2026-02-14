@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::constants::*;
 use crate::state::*;
+use crate::errors::*;
 use anchor_spl::token::Token;
 use crate::events::*;
 use anchor_spl::associated_token::AssociatedToken;
@@ -12,6 +13,8 @@ use raydium_cp_swap::cpi;
 
 pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
 {
+    require!(ctx.accounts.global.status != ProgramStatus::Paused, AdminError::ProgramPaused);
+
     //transfer MIGRATION_FEE
 
     let signer_seeds: &[&[u8]] = &[
@@ -20,18 +23,12 @@ pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
         &[ctx.accounts.bonding_curve.bump],
     ];
 
-    let binding = [signer_seeds];
-    let cpi_context = CpiContext::new_with_signer(
-        ctx.accounts.system_program.to_account_info(),
-        anchor_lang::system_program::Transfer{
-            from: ctx.accounts.bonding_curve.to_account_info(),
-            to: ctx.accounts.fee_vault.to_account_info(),
-        },
-        &binding
-    );    
+    ctx.accounts.bonding_curve.sub_lamports(MIGRATION_FEE)?;
+    ctx.accounts.fee_vault.add_lamports(MIGRATION_FEE)?;
 
-    anchor_lang::system_program::transfer(cpi_context, MIGRATION_FEE)?;
-    
+    // Calculate SOL amount for Raydium pool (actual reserves minus migration fee)
+    let sol_for_pool = ctx.accounts.bonding_curve.real_sol_reserves.checked_sub(MIGRATION_FEE).ok_or(MathError::Overflow)?;
+
     ////////init raydium
 
     let cpi_accounts = cpi::accounts::Initialize {
@@ -56,10 +53,12 @@ pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
         system_program: ctx.accounts.system_program.to_account_info(),
         rent: ctx.accounts.rent.to_account_info(),
     };
-    let cpi_context = CpiContext::new_with_signer(ctx.accounts.cp_swap_program.to_account_info(), cpi_accounts, &binding);
-    cpi::initialize(cpi_context, ctx.accounts.bonding_curve.real_sol_reserves - MIGRATION_FEE, ctx.accounts.token_account.amount, Clock::get()?.unix_timestamp as u64)?;
+    let signer = [signer_seeds];
+    let cpi_context = CpiContext::new_with_signer(ctx.accounts.cp_swap_program.to_account_info(), cpi_accounts, &signer);
+    cpi::initialize(cpi_context, sol_for_pool, ctx.accounts.token_account.amount, u64::try_from(Clock::get()?.unix_timestamp).map_err(|_| error!(MathError::CastOverflow))?)?;
     //burn
-    
+
+    let signer2 = [signer_seeds];
     let cpi_context = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         anchor_spl::token_interface::Burn{
@@ -67,14 +66,14 @@ pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
             mint: ctx.accounts.lp_mint.to_account_info(),
             authority: ctx.accounts.bonding_curve.to_account_info()
         },
-        &binding
+        &signer2
     );
-    
+
     let lp_data = ctx.accounts.creator_lp_token.to_account_info();
     let lp_token = TokenAccount::try_deserialize(&mut&lp_data.data.borrow()[..])?;
     anchor_spl::token_interface::burn(cpi_context, lp_token.amount)?;
-    
-    
+
+
     ctx.accounts.bonding_curve.migrated = true;
 
     emit!(MigrateEvent{
@@ -83,7 +82,7 @@ pub fn _migrate_to_raydium(ctx: Context<MigrateRaydium>) -> Result<()>
     });
 
 
-    
+
     Ok(())
 }
 
@@ -94,9 +93,9 @@ pub struct MigrateRaydium<'info>
     pub authority: Signer<'info>,
 
     #[account(
-        mut,
         seeds = [GLOBAL_SEED],
-        bump
+        bump,
+        has_one = authority,
     )]
     pub global: Account<'info, Global>,
 
@@ -155,8 +154,10 @@ pub struct MigrateRaydium<'info>
     pub pool_state: UncheckedAccount<'info>,
 
     /// Token_0 mint, the key must smaller then token_1 mint.
+    /// One of token_0_mint or token_1_mint must be the bonding curve's token mint.
     #[account(
         constraint = token_0_mint.key() < token_1_mint.key(),
+        constraint = token_0_mint.key() == mint.key() || token_1_mint.key() == mint.key(),
         mint::token_program = token_0_program,
     )]
     pub token_0_mint: Box<InterfaceAccount<'info, Mint>>,

@@ -13,15 +13,15 @@ use anchor_spl::metadata::{
     mpl_token_metadata::types::DataV2,
 };
 
-pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symbol: String, uri: String, sol_amount: u64) -> Result<()>
+pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symbol: String, uri: String, sol_amount: u64, min_tokens_out: u64) -> Result<()>
 {
-    require!(ctx.accounts.global.status != ProgramStatus::Paused, AdminError::ProgramPaused);
+    require!(ctx.accounts.global.status == ProgramStatus::Running, AdminError::ProgramPaused);
 
-    let bc = &mut ctx.accounts.bonding_curve;                                    
-    bc.mint = ctx.accounts.mint.key();                                           
-    bc.creator = ctx.accounts.creator.key();                                     
-    bc.virtual_sol = ctx.accounts.global.initial_virtual_sol_reserves;           
-    bc.virtual_token = ctx.accounts.global.initial_virtual_token_reserves;       
+    let bc = &mut ctx.accounts.bonding_curve;
+    bc.mint = ctx.accounts.mint.key();
+    bc.creator = ctx.accounts.creator.key();
+    bc.virtual_sol = ctx.accounts.global.initial_virtual_sol_reserves;
+    bc.virtual_token = ctx.accounts.global.initial_virtual_token_reserves;
     bc.real_token = ctx.accounts.global.initial_real_token_reserves;
     bc.real_sol_reserves = 0;
     bc.token_total_supply = ctx.accounts.global.token_total_supply;
@@ -30,8 +30,8 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
     bc.migrated = false;
     bc.bump = ctx.bumps.bonding_curve;
 
-    let mint_key = ctx.accounts.mint.key();                                      
-    let seeds = &[                                                               
+    let mint_key = ctx.accounts.mint.key();
+    let seeds = &[
         BONDING_CURVE_SEED,
         mint_key.as_ref(),
         &[bc.bump],
@@ -49,6 +49,20 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
             signer_seeds,
         ),
         ctx.accounts.global.token_total_supply,
+    )?;
+
+    // Revoke freeze authority
+    anchor_spl::token::set_authority(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::SetAuthority {
+                account_or_mint: ctx.accounts.mint.to_account_info(),
+                current_authority: ctx.accounts.bonding_curve.to_account_info(),
+            },
+            signer_seeds,
+        ),
+        anchor_spl::token::spl_token::instruction::AuthorityType::FreezeAccount,
+        None,
     )?;
 
     let ev_name = name.clone();
@@ -84,6 +98,15 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
         None,  // collection_details
     )?;
 
+    // Emit create event first (before trade) for correct indexer ordering
+    emit!(CreateEvent{
+        creator: ctx.accounts.creator.key(),
+        mint: ctx.accounts.mint.key(),
+        name: ev_name,
+        symbol: ev_symbol,
+        uri: ev_uri,
+    });
+
     //BUY
 
     require!(sol_amount > 0, TradeError::ZeroAmount);
@@ -92,12 +115,14 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
         .checked_mul(ctx.accounts.global.trade_fee_bps as u128)
         .ok_or(MathError::Overflow)?
         .checked_div(10_000)
-        .ok_or(MathError::DivisionByZero)? as u64;
+        .ok_or(MathError::DivisionByZero)?;
+    let fee = u64::try_from(fee).map_err(|_| MathError::CastOverflow)?;
 
-    let sol_after_fee = sol_amount - fee;
+    let sol_after_fee = sol_amount.checked_sub(fee).ok_or(MathError::Overflow)?;
 
     let tokens_out = calculate_buy_amount(ctx.accounts.bonding_curve.virtual_sol, ctx.accounts.bonding_curve.virtual_token, sol_after_fee)?;
 
+    require!(tokens_out >= min_tokens_out, TradeError::SlippageExceeded);
     require!(tokens_out <= ctx.accounts.bonding_curve.real_token, TradeError::NotEnoughTokens);
 
     let cpi_context = CpiContext::new(
@@ -129,19 +154,71 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
 
     anchor_spl::token::transfer(cpi_context, tokens_out)?;
 
-    let cpi_context = CpiContext::new(
+    // Creator fee — skip transfer since creator == signer (would pay themselves)
+    let creator_fee = (fee as u128)
+        .checked_mul(ctx.accounts.global.creator_share_bps as u128)
+        .ok_or(MathError::Overflow)?
+        .checked_div(10_000)
+        .ok_or(MathError::DivisionByZero)?;
+    let creator_fee = u64::try_from(creator_fee).map_err(|_| MathError::CastOverflow)?;
+    let remaining_fee = fee.checked_sub(creator_fee).ok_or(MathError::Overflow)?;
+
+    // Fee distribution with referral split
+    if let Some(referral) = &mut ctx.accounts.referral
+    {
+        // Validate referral PDA
+        let (expected_pda, _) = Pubkey::find_program_address(
+            &[REFERRAL_SEED, referral.referrer.as_ref()],
+            ctx.program_id,
+        );
+        require!(referral.key() == expected_pda, TradeError::InvalidReferral);
+
+        let referral_fee = (remaining_fee as u128)
+            .checked_mul(ctx.accounts.global.referral_share_bps as u128)
+            .ok_or(MathError::Overflow)?
+            .checked_div(10_000)
+            .ok_or(MathError::DivisionByZero)?;
+        let referral_fee = u64::try_from(referral_fee).map_err(|_| MathError::CastOverflow)?;
+
+        let protocol_fee = remaining_fee.checked_sub(referral_fee).ok_or(MathError::Overflow)?;
+
+        let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             anchor_lang::system_program::Transfer{
                 from: ctx.accounts.creator.to_account_info(),
                 to: ctx.accounts.fee_vault.to_account_info(),
             }
         );
-    anchor_lang::system_program::transfer(cpi_context, fee)?;
+        anchor_lang::system_program::transfer(cpi_context, protocol_fee)?;
 
-    ctx.accounts.bonding_curve.virtual_sol += sol_after_fee;
-    ctx.accounts.bonding_curve.virtual_token -= tokens_out;
-    ctx.accounts.bonding_curve.real_sol_reserves += sol_after_fee;
-    ctx.accounts.bonding_curve.real_token -= tokens_out;
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer{
+                from: ctx.accounts.creator.to_account_info(),
+                to: referral.to_account_info(),
+            }
+        );
+        anchor_lang::system_program::transfer(cpi_context, referral_fee)?;
+
+        referral.total_earned = referral.total_earned.checked_add(referral_fee).ok_or(MathError::Overflow)?;
+        referral.trade_count = referral.trade_count.checked_add(1).ok_or(MathError::Overflow)?;
+    }
+    else
+    {
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            anchor_lang::system_program::Transfer{
+                from: ctx.accounts.creator.to_account_info(),
+                to: ctx.accounts.fee_vault.to_account_info(),
+            }
+        );
+        anchor_lang::system_program::transfer(cpi_context, remaining_fee)?;
+    }
+
+    ctx.accounts.bonding_curve.virtual_sol = ctx.accounts.bonding_curve.virtual_sol.checked_add(sol_after_fee).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.virtual_token = ctx.accounts.bonding_curve.virtual_token.checked_sub(tokens_out).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.real_sol_reserves = ctx.accounts.bonding_curve.real_sol_reserves.checked_add(sol_after_fee).ok_or(MathError::Overflow)?;
+    ctx.accounts.bonding_curve.real_token = ctx.accounts.bonding_curve.real_token.checked_sub(tokens_out).ok_or(MathError::Overflow)?;
 
     if ctx.accounts.bonding_curve.real_sol_reserves >= ctx.accounts.global.graduation_threshold
     {
@@ -152,21 +229,15 @@ pub fn _create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symb
       });
     }
 
-    emit!(TradeEvent {                                                           
-        mint: ctx.accounts.mint.key(),                                           
-        trader: ctx.accounts.creator.key(),                                        
+    emit!(TradeEvent {
+        mint: ctx.accounts.mint.key(),
+        trader: ctx.accounts.creator.key(),
         is_buy: true,
-        sol_amount: sol_after_fee,                                               
-        token_amount: tokens_out,                                                
+        sol_amount: sol_after_fee,
+        token_amount: tokens_out,
+        fee,
     });
 
-    emit!(CreateEvent{
-        creator: ctx.accounts.creator.key(),
-        mint: ctx.accounts.mint.key(),
-        name: ev_name,
-        symbol: ev_symbol,
-        uri: ev_uri,
-    });
     Ok(())
 }
 
@@ -177,7 +248,6 @@ pub struct CreateAndBuyToken<'info>
     pub creator: Signer<'info>,
 
     #[account(
-        mut,
         seeds = [GLOBAL_SEED],
         bump,
     )]
@@ -188,6 +258,7 @@ pub struct CreateAndBuyToken<'info>
     payer = creator,
     mint::decimals = global.token_decimal,
     mint::authority = bonding_curve,
+    mint::freeze_authority = bonding_curve,
     )]
     pub mint: Account<'info, Mint>,
 
@@ -200,8 +271,6 @@ pub struct CreateAndBuyToken<'info>
     )]
     pub bonding_curve: Account<'info, BondingCurve>,
 
-        
-
     #[account(
         init,
         payer = creator,
@@ -213,7 +282,7 @@ pub struct CreateAndBuyToken<'info>
     #[account(
         mut,
         seeds = [FEE_VAULT_SEED],
-        bump,        
+        bump,
     )]
     pub fee_vault: SystemAccount<'info>,
 
@@ -224,6 +293,9 @@ pub struct CreateAndBuyToken<'info>
         associated_token::authority = bonding_curve
     )]
     pub token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub referral: Option<Account<'info, Referral>>,
 
     /// CHECK: created via CPI to token metadata program
     #[account(mut)]

@@ -1,13 +1,14 @@
 use anchor_lang::prelude::*;
 
- #[event]                                                                     
-pub struct TradeEvent 
+ #[event]
+pub struct TradeEvent
 {
     pub mint: Pubkey,
     pub trader: Pubkey,
     pub is_buy: bool,
     pub sol_amount: u64,
     pub token_amount: u64,
+    pub fee: u64,
 }
 
 #[event]

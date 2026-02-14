@@ -25,7 +25,10 @@ pub fn _initialize(ctx: Context<Initialize>) -> Result<()>
 #[derive(Accounts)]
 pub struct Initialize<'info>
 {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = DEPLOYER_PUBKEY,
+    )]
     pub authority: Signer<'info>,
 
     #[account(

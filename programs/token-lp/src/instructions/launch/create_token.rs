@@ -14,13 +14,13 @@ use anchor_spl::metadata::{
 
 pub fn _create_token(ctx: Context<CreateToken>, name: String, symbol: String, uri: String) -> Result<()>
 {
-    require!(ctx.accounts.global.status != ProgramStatus::Paused, AdminError::ProgramPaused);
+    require!(ctx.accounts.global.status == ProgramStatus::Running, AdminError::ProgramPaused);
 
-    let bc = &mut ctx.accounts.bonding_curve;                                    
-    bc.mint = ctx.accounts.mint.key();                                           
-    bc.creator = ctx.accounts.creator.key();                                     
-    bc.virtual_sol = ctx.accounts.global.initial_virtual_sol_reserves;           
-    bc.virtual_token = ctx.accounts.global.initial_virtual_token_reserves;       
+    let bc = &mut ctx.accounts.bonding_curve;
+    bc.mint = ctx.accounts.mint.key();
+    bc.creator = ctx.accounts.creator.key();
+    bc.virtual_sol = ctx.accounts.global.initial_virtual_sol_reserves;
+    bc.virtual_token = ctx.accounts.global.initial_virtual_token_reserves;
     bc.real_token = ctx.accounts.global.initial_real_token_reserves;
     bc.real_sol_reserves = 0;
     bc.token_total_supply = ctx.accounts.global.token_total_supply;
@@ -29,8 +29,8 @@ pub fn _create_token(ctx: Context<CreateToken>, name: String, symbol: String, ur
     bc.migrated = false;
     bc.bump = ctx.bumps.bonding_curve;
 
-    let mint_key = ctx.accounts.mint.key();                                      
-    let seeds = &[                                                               
+    let mint_key = ctx.accounts.mint.key();
+    let seeds = &[
         BONDING_CURVE_SEED,
         mint_key.as_ref(),
         &[bc.bump],
@@ -48,6 +48,20 @@ pub fn _create_token(ctx: Context<CreateToken>, name: String, symbol: String, ur
             signer_seeds,
         ),
         ctx.accounts.global.token_total_supply,
+    )?;
+
+    // Revoke freeze authority
+    anchor_spl::token::set_authority(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::SetAuthority {
+                account_or_mint: ctx.accounts.mint.to_account_info(),
+                current_authority: ctx.accounts.bonding_curve.to_account_info(),
+            },
+            signer_seeds,
+        ),
+        anchor_spl::token::spl_token::instruction::AuthorityType::FreezeAccount,
+        None,
     )?;
 
     let ev_name = name.clone();
@@ -100,7 +114,6 @@ pub struct CreateToken<'info>
     pub creator: Signer<'info>,
 
     #[account(
-        mut,
         seeds = [GLOBAL_SEED],
         bump,
     )]
@@ -111,6 +124,7 @@ pub struct CreateToken<'info>
     payer = creator,
     mint::decimals = global.token_decimal,
     mint::authority = bonding_curve,
+    mint::freeze_authority = bonding_curve,
     )]
     pub mint: Account<'info, Mint>,
 

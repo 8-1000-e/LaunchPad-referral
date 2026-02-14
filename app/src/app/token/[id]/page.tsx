@@ -18,7 +18,7 @@ import {
   Globe,
   MessageCircle,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Navbar } from "@/components/navbar";
 import { TokenChart } from "@/components/token-chart";
 import { TradeForm } from "@/components/trade-form";
@@ -242,6 +242,7 @@ export default function TokenDetailPage({
   const { id } = use(params);
   const token = TOKENS[id];
   const [mintCopied, setMintCopied] = useState(false);
+  const [tradeOpen, setTradeOpen] = useState(false);
 
   /* ─── Live price simulation ─── */
   const [livePrice, setLivePrice] = useState(token?.price ?? 0);
@@ -404,7 +405,7 @@ export default function TokenDetailPage({
       <div className="relative">
         <Navbar />
 
-        <div className="mx-auto max-w-7xl px-4 pt-6 pb-20 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 pt-6 pb-24 lg:pb-20 sm:px-6">
           {/* Back link */}
           <Link
             href="/"
@@ -451,104 +452,105 @@ export default function TokenDetailPage({
               {token.symbol.slice(0, 2)}
             </div>
 
-            <div className="flex flex-wrap items-start justify-between gap-4 min-w-0">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-display text-xl font-bold text-text-1 sm:text-2xl">
-                    {token.name}
-                  </h1>
-                  <span className="font-mono text-[14px] text-text-3">
-                    ${token.symbol}
-                  </span>
-                  <StatusBadge status={token.status} />
-                </div>
-
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-text-3">
-                  <button
-                    onClick={handleCopyMint}
-                    className="inline-flex items-center gap-1 font-mono transition-colors hover:text-text-2"
-                  >
-                    {shorten(token.mint)}
-                    {mintCopied ? (
-                      <Check className="h-3 w-3 text-buy" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </button>
-                  <span>
-                    Created by{" "}
-                    <Link href={`/profile/${token.creator}`} className="font-mono text-text-2 hover:text-text-1 transition-colors">
-                      {shorten(token.creator)}
-                    </Link>
-                  </span>
-                  <span>{token.createdAgo} ago</span>
-                </div>
-
-                {token.description && (
-                  <p className="mt-2 max-w-xl text-[13px] text-text-3 leading-relaxed">
-                    {token.description}
-                  </p>
-                )}
-
-                {/* Social links */}
-                {(token.twitter || token.telegram || token.website) && (
-                  <div className="mt-2 flex items-center gap-2.5">
-                    {token.twitter && (
-                      <a
-                        href={`https://x.com/${token.twitter}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-text-3 transition-colors hover:text-text-1"
-                        title={`@${token.twitter}`}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                        </svg>
-                      </a>
-                    )}
-                    {token.telegram && (
-                      <a
-                        href={`https://t.me/${token.telegram}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-text-3 transition-colors hover:text-text-1"
-                        title={token.telegram}
-                      >
-                        <MessageCircle className="h-[15px] w-[15px]" />
-                      </a>
-                    )}
-                    {token.website && (
-                      <a
-                        href={token.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-text-3 transition-colors hover:text-text-1"
-                        title={token.website}
-                      >
-                        <Globe className="h-[15px] w-[15px]" />
-                      </a>
-                    )}
-                  </div>
-                )}
+            {/* Name + Price row */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <h1 className="font-display text-xl font-bold text-text-1 sm:text-2xl">
+                  {token.name}
+                </h1>
+                <span className="font-mono text-[14px] text-text-3">
+                  ${token.symbol}
+                </span>
+                <StatusBadge status={token.status} />
               </div>
 
               {/* Price — live ticker */}
-              <div className="text-right">
-                <div className="text-2xl sm:text-3xl text-text-1">
+              <div className="shrink-0 text-right">
+                <div className="text-xl sm:text-3xl text-text-1">
                   <TickerPrice price={livePrice} flash={priceFlash} />
                 </div>
-                <p className="text-[11px] text-text-3">SOL</p>
-                <p
-                  className={`mt-1 font-mono text-[14px] font-medium ${
-                    token.priceChange24h >= 0 ? "text-buy" : "text-sell"
-                  }`}
-                >
-                  {token.priceChange24h >= 0 ? "+" : ""}
-                  {token.priceChange24h.toFixed(1)}%
-                  <span className="ml-1 text-[11px] text-text-3">24h</span>
-                </p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="text-[11px] text-text-3">SOL</span>
+                  <span
+                    className={`font-mono text-[12px] font-medium ${
+                      token.priceChange24h >= 0 ? "text-buy" : "text-sell"
+                    }`}
+                  >
+                    {token.priceChange24h >= 0 ? "+" : ""}
+                    {token.priceChange24h.toFixed(1)}%
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Meta info */}
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-text-3">
+              <button
+                onClick={handleCopyMint}
+                className="inline-flex items-center gap-1 font-mono transition-colors hover:text-text-2"
+              >
+                {shorten(token.mint)}
+                {mintCopied ? (
+                  <Check className="h-3 w-3 text-buy" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+              <span>
+                Created by{" "}
+                <Link href={`/profile/${token.creator}`} className="font-mono text-text-2 hover:text-text-1 transition-colors">
+                  {shorten(token.creator)}
+                </Link>
+              </span>
+              <span>{token.createdAgo} ago</span>
+            </div>
+
+            {token.description && (
+              <p className="mt-2 max-w-xl text-[13px] text-text-3 leading-relaxed">
+                {token.description}
+              </p>
+            )}
+
+            {/* Social links */}
+            {(token.twitter || token.telegram || token.website) && (
+              <div className="mt-2 flex items-center gap-2.5">
+                {token.twitter && (
+                  <a
+                    href={`https://x.com/${token.twitter}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-3 transition-colors hover:text-text-1"
+                    title={`@${token.twitter}`}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  </a>
+                )}
+                {token.telegram && (
+                  <a
+                    href={`https://t.me/${token.telegram}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-3 transition-colors hover:text-text-1"
+                    title={token.telegram}
+                  >
+                    <MessageCircle className="h-[15px] w-[15px]" />
+                  </a>
+                )}
+                {token.website && (
+                  <a
+                    href={token.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-3 transition-colors hover:text-text-1"
+                    title={token.website}
+                  >
+                    <Globe className="h-[15px] w-[15px]" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ─── 2 Column Layout ─── */}
@@ -650,8 +652,8 @@ export default function TokenDetailPage({
               />
             </div>
 
-            {/* RIGHT COLUMN — Sticky trade form */}
-            <div className="lg:sticky lg:top-[72px] lg:self-start">
+            {/* RIGHT COLUMN — Sticky trade form (desktop only) */}
+            <div className="hidden lg:block lg:sticky lg:top-[72px] lg:self-start">
               <TradeForm
                 tokenSymbol={token.symbol}
                 tokenPrice={token.price}
@@ -661,6 +663,46 @@ export default function TokenDetailPage({
           </div>
         </div>
       </div>
+
+      {/* ── Mobile floating buy button ── */}
+      <button
+        onClick={() => setTradeOpen(true)}
+        className="fixed bottom-5 left-4 right-4 z-50 flex items-center justify-center gap-2 py-3.5 text-[14px] font-semibold text-bg lg:hidden"
+        style={{
+          background: "var(--buy)",
+          boxShadow: "0 4px 24px -4px rgba(34,197,94,0.4)",
+        }}
+      >
+        <span className="font-display">Buy ${token.symbol}</span>
+        <span className="mx-1.5 h-4 w-px bg-bg/30" />
+        <span className="font-mono text-[12px] text-bg/70">12,450 {token.symbol}</span>
+      </button>
+
+      {/* ── Mobile trade modal ── */}
+      {tradeOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setTradeOpen(false)}
+          />
+          {/* Sheet */}
+          <div
+            className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto bg-bg border-t border-border"
+            style={{ animation: "slide-up 0.25s ease-out" }}
+          >
+            {/* Handle */}
+            <div className="sticky top-0 z-10 flex justify-center bg-bg pt-3 pb-2">
+              <div className="h-1 w-10 rounded-full bg-border" />
+            </div>
+            <TradeForm
+              tokenSymbol={token.symbol}
+              tokenPrice={token.price}
+              color={token.color}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

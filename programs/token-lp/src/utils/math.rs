@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::errors::*;
 
-/// Calcule combien de tokens on reçoit pour `sol_amount` SOL                
+/// Calcule combien de tokens on reçoit pour `sol_amount` SOL
 /// Formule constant-product : tokens_out = (virtual_token * sol_amount) / (virtual_sol + sol_amount)
 pub fn calculate_buy_amount(virtual_sol: u64, virtual_token: u64, sol_amount: u64) -> Result<u64>
 {
@@ -14,7 +14,7 @@ pub fn calculate_buy_amount(virtual_sol: u64, virtual_token: u64, sol_amount: u6
     let tokens_out = numerator.checked_div(denominator)
     .ok_or(MathError::DivisionByZero)?;
 
-    Ok(tokens_out as u64)
+    u64::try_from(tokens_out).map_err(|_| MathError::CastOverflow.into())
 }
 
 pub fn calculate_sell_amount(virtual_sol: u64, virtual_token: u64, token_amount: u64) -> Result<u64>
@@ -28,5 +28,5 @@ pub fn calculate_sell_amount(virtual_sol: u64, virtual_token: u64, token_amount:
     let sol_out = numerator.checked_div(denominator)
     .ok_or(MathError::DivisionByZero)?;
 
-    Ok(sol_out as u64)
+    u64::try_from(sol_out).map_err(|_| MathError::CastOverflow.into())
 }

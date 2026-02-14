@@ -754,8 +754,10 @@ export function BondingCurve3D({
 
     // ── Trade simulation ──
     let tradeTimer: ReturnType<typeof setTimeout>;
+    let paused = false;
 
     function scheduleNext() {
+      if (paused) return;
       const delay = 200 + Math.random() * 600;
       tradeTimer = setTimeout(() => {
         const last = history[history.length - 1];
@@ -837,6 +839,17 @@ export function BondingCurve3D({
       if (!container) return;
       const rect = container.getBoundingClientRect();
       scrollFactor = Math.max(0, Math.min(1, -rect.top / rect.height));
+
+      // Pause simulation when hero is mostly off-screen, resume when back
+      const shouldPause = scrollFactor > 0.7;
+      if (shouldPause && !paused) {
+        paused = true;
+        clearTimeout(tradeTimer);
+      } else if (!shouldPause && paused) {
+        paused = false;
+        clock.getDelta(); // flush stale dt so first frame isn't huge
+        scheduleNext();
+      }
     }
     window.addEventListener("scroll", onScroll, { passive: true });
 
@@ -847,7 +860,11 @@ export function BondingCurve3D({
 
     function animate() {
       animId = requestAnimationFrame(animate);
-      const dt = clock.getDelta();
+      if (paused) {
+        clock.getDelta(); // keep clock ticking to avoid dt spike on resume
+        return;
+      }
+      const dt = Math.min(clock.getDelta(), 0.1); // clamp dt to prevent jumps
       const time = clock.getElapsedTime();
 
       // Scroll zoom

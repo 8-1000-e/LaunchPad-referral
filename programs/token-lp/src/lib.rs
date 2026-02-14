@@ -47,9 +47,9 @@ pub mod token_lp {
         instructions::launch::create_token::_create_token(ctx, name, symbol, uri)
     }
 
-    pub fn create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symbol: String, uri: String, sol_amount: u64) -> Result<()>
+    pub fn create_and_buy_token(ctx: Context<CreateAndBuyToken>, name: String, symbol: String, uri: String, sol_amount: u64, min_tokens_out: u64) -> Result<()>
     {
-        instructions::launch::create_and_buy::_create_and_buy_token(ctx, name, symbol, uri, sol_amount)
+        instructions::launch::create_and_buy::_create_and_buy_token(ctx, name, symbol, uri, sol_amount, min_tokens_out)
     }
 
     pub fn buy_token(ctx: Context<Buy>, sol_amount: u64, min_tokens_out: u64) -> Result<()>
